@@ -1,1 +1,4 @@
 *.[oa]
+*.exe
+test/libmatrix_test
+test/libmatrix_test.exe

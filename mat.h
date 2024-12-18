@@ -103,7 +103,7 @@ public:
     //
     // NOTE: If this is non-invertible, we will
     //       throw to avoid undefined behavior.
-    tmat2& inverse() throw(std::runtime_error)
+    tmat2& inverse() noexcept(false)
     {
         T d(determinant());
         if (d == static_cast<T>(0))
@@ -397,7 +397,7 @@ public:
     //
     // NOTE: If this is non-invertible, we will
     //       throw to avoid undefined behavior.
-    tmat3& inverse() throw(std::runtime_error)
+    tmat3& inverse() noexcept(false)
     {
         T d(determinant());
         if (d == static_cast<T>(0))
@@ -771,7 +771,7 @@ public:
     //
     // NOTE: If this is non-invertible, we will
     //       throw to avoid undefined behavior.
-    tmat4& inverse() throw(std::runtime_error)
+    tmat4& inverse() noexcept(false)
     {
         T d(determinant());
         if (d == static_cast<T>(0))
