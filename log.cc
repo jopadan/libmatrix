@@ -10,7 +10,6 @@
 //     Alexandros Frantzis <alexandros.frantzis@linaro.org>
 //     Jesse Barker <jesse.barker@linaro.org>
 //
-#include <unistd.h>
 #include <cstdio>
 #include <cstdarg>
 #include <string>
@@ -20,6 +19,13 @@
 
 #ifdef ANDROID
 #include <android/log.h>
+#endif
+
+#ifdef _WIN32
+// On windows 'isatty' is found in <io.h>
+#include <io.h>
+#else
+#include <unistd.h>
 #endif
 
 using std::string;
@@ -33,6 +39,7 @@ static const string terminal_color_normal("\033[0m");
 static const string terminal_color_red("\033[1;31m");
 static const string terminal_color_cyan("\033[36m");
 static const string terminal_color_yellow("\033[33m");
+static const string terminal_color_magenta("\033[35m");
 static const string empty;
 
 static void
@@ -96,6 +103,16 @@ print_prefixed_message(std::ostream& stream, const string& color, const string& 
     delete[] buf;
 }
 
+#ifdef ANDROID
+static void
+android_vlog(int prio, const char *tag, const char *fmt, va_list ap)
+{
+    va_list aq;
+    va_copy(aq, ap);
+    __android_log_vprint(prio, tag, fmt, aq);
+    va_end(aq);
+}
+#endif
 
 void
 Log::info(const char *fmt, ...)
@@ -110,7 +127,7 @@ Log::info(const char *fmt, ...)
     const string& color(do_debug_ ? infocolor : empty);
     print_prefixed_message(std::cout, color, prefix, fmt, ap);
 #else
-    __android_log_vprint(ANDROID_LOG_INFO, appname_.c_str(), fmt, ap);
+    android_vlog(ANDROID_LOG_INFO, appname_.c_str(), fmt, ap);
 #endif
 
     if (extra_out_)
@@ -132,7 +149,7 @@ Log::debug(const char *fmt, ...)
     static const string& dbgcolor(isatty(fileno(stdout)) ? terminal_color_yellow : empty);
     print_prefixed_message(std::cout, dbgcolor, dbgprefix, fmt, ap);
 #else
-    __android_log_vprint(ANDROID_LOG_DEBUG, appname_.c_str(), fmt, ap);
+    android_vlog(ANDROID_LOG_DEBUG, appname_.c_str(), fmt, ap);
 #endif
 
     if (extra_out_)
@@ -152,11 +169,31 @@ Log::error(const char *fmt, ...)
     static const string& errcolor(isatty(fileno(stderr)) ? terminal_color_red : empty);
     print_prefixed_message(std::cerr, errcolor, errprefix, fmt, ap);
 #else
-    __android_log_vprint(ANDROID_LOG_ERROR, appname_.c_str(), fmt, ap);
+    android_vlog(ANDROID_LOG_ERROR, appname_.c_str(), fmt, ap);
 #endif
 
     if (extra_out_)
         print_prefixed_message(*extra_out_, empty, errprefix, fmt, ap);
+
+    va_end(ap);
+}
+
+void
+Log::warning(const char *fmt, ...)
+{
+    static const string warnprefix("Warning");
+    va_list ap;
+    va_start(ap, fmt);
+
+#ifndef ANDROID
+    static const string& warncolor(isatty(fileno(stderr)) ? terminal_color_magenta : empty);
+    print_prefixed_message(std::cerr, warncolor, warnprefix, fmt, ap);
+#else
+    android_vlog(ANDROID_LOG_WARN, appname_.c_str(), fmt, ap);
+#endif
+
+    if (extra_out_)
+        print_prefixed_message(*extra_out_, empty, warnprefix, fmt, ap);
 
     va_end(ap);
 }

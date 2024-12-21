@@ -16,7 +16,9 @@
 #include <string>
 #include <vector>
 #include <istream>
+#include <iomanip>
 #include <sstream>
+#include <filesystem>
 #include <stdint.h>
 
 #ifdef ANDROID
@@ -64,7 +66,7 @@ struct Util {
      * Returns a pointer to an input stream, which must be deleted when no
      * longer in use.
      */
-    static std::istream *get_resource(const std::string &path);
+    static std::istream *get_resource(const std::filesystem::path &path);
     /**
      * list_files() - Get a list of the files in a given directory.
      *
@@ -74,7 +76,8 @@ struct Util {
      * Obtains a list of the files in @dirName, and returns them in the string
      * vector @fileVec.
      */
-    static void list_files(const std::string& dirName, std::vector<std::string>& fileVec);
+    static void list_files(const std::filesystem::path& dirName,
+                           std::vector<std::filesystem::path>& fileVec);
     /**
      * dispose_pointer_vector() - cleans up a vector of pointers
      *
@@ -105,7 +108,7 @@ struct Util {
     {
         std::stringstream ss(asString);
         T retVal = T();
-        ss >> retVal;
+        ss >> std::setbase(0) >> retVal;
         return retVal;
     }
     /**
@@ -122,14 +125,22 @@ struct Util {
         return ss.str();
     }
     /**
-     * appname_from_path() - get the name of an executable from an absolute path
+     * toString() - Converts a double type to a string with precision.
      *
-     * @path:   absolute path of the running application (argv[0])
-     *
-     * Returns the last portion of @path (everything after the final '/').
+     * @t:         a double value to be converted to a string
+     * @precision: the precision to use for the conversion
      */
     static std::string
-    appname_from_path(const std::string& path);
+    toString(double t, int precision)
+    {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(precision) << t;
+        return ss.str();
+    }
+
+    static unsigned int get_num_processors();
+    static void get_process_times(double *user_sec, double *system_sec);
+    static double get_idle_time();
 
 #ifdef ANDROID
     static void android_set_asset_manager(AAssetManager *asset_manager);

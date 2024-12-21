@@ -12,11 +12,15 @@
 //
 #include <sstream>
 #include <fstream>
-#include <sys/time.h>
+#include <chrono>
 #ifdef ANDROID
 #include <android/asset_manager.h>
+#endif
+#ifdef _WIN32
+#include <windows.h>
 #else
-#include <dirent.h>
+#include <unistd.h>
+#include <sys/resource.h>
 #endif
 
 #include "log.h"
@@ -101,6 +105,7 @@ fill_escape_vector(const string &str, vector<bool> &esc_vec)
                     state = StateNormal;
                 else
                     esc = true;
+                break;
             default:
                 break;
         }
@@ -220,58 +225,33 @@ Util::split(const string& src, char delim, vector<string>& elementVec,
 uint64_t
 Util::get_timestamp_us()
 {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    uint64_t now = static_cast<uint64_t>(tv.tv_sec) * 1000000 +
-                   static_cast<double>(tv.tv_usec);
-    return now;
-}
-
-std::string
-Util::appname_from_path(const std::string& path)
-{
-    std::string::size_type slashPos = path.rfind("/");
-    std::string::size_type startPos(0);
-    if (slashPos != std::string::npos)
-    {
-        startPos = slashPos + 1;
-    }
-    return std::string(path, startPos, std::string::npos);
+    return
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 #ifndef ANDROID
 
 std::istream *
-Util::get_resource(const std::string &path)
+Util::get_resource(const std::filesystem::path &path)
 {
-    std::ifstream *ifs = new std::ifstream(path.c_str());
+    std::ifstream *ifs = new std::ifstream(path, std::ios::binary);
 
     return static_cast<std::istream *>(ifs);
 }
 
 void
-Util::list_files(const std::string& dirName, std::vector<std::string>& fileVec)
+Util::list_files(const std::filesystem::path& dirName,
+                 std::vector<std::filesystem::path>& fileVec)
 {
-    DIR* dir = opendir(dirName.c_str());
-    if (!dir)
+    try
     {
-        Log::error("Failed to open models directory '%s'\n", dirName.c_str());
-        return;
+        for (const auto& entry : std::filesystem::directory_iterator{dirName})
+            fileVec.push_back(entry.path());
     }
-
-    struct dirent* entry = readdir(dir);
-    while (entry)
+    catch (...)
     {
-        std::string pathname(dirName + "/");
-        pathname += std::string(entry->d_name);
-        // Skip '.' and '..'
-        if (entry->d_name[0] != '.')
-        {
-            fileVec.push_back(pathname);
-        }
-        entry = readdir(dir);
     }
-    closedir(dir);
 }
 
 #else
@@ -291,9 +271,9 @@ Util::android_get_asset_manager()
 }
 
 std::istream *
-Util::get_resource(const std::string &path)
+Util::get_resource(const std::filesystem::path &path)
 {
-    std::string path2(path);
+    std::string path2 = path.string();
     /* Remove leading '/' from path name, it confuses the AssetManager */
     if (path2.size() > 0 && path2[0] == '/')
         path2.erase(0, 1);
@@ -315,10 +295,11 @@ Util::get_resource(const std::string &path)
 }
 
 void
-Util::list_files(const std::string& dirName, std::vector<std::string>& fileVec)
+Util::list_files(const std::filesystem::path& dirName,
+                 std::vector<std::filesystem::path>& fileVec)
 {
     AAssetManager *mgr(Util::android_get_asset_manager());
-    std::string dir_name(dirName);
+    std::string dir_name = dirName.string();
 
     /* Remove leading '/' from path, it confuses the AssetManager */
     if (dir_name.size() > 0 && dir_name[0] == '/')
@@ -341,3 +322,60 @@ Util::list_files(const std::string& dirName, std::vector<std::string>& fileVec)
     AAssetDir_close(dir);
 }
 #endif
+
+unsigned int
+Util::get_num_processors()
+{
+#ifdef _WIN32
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    return sysinfo.dwNumberOfProcessors;
+#else
+    return sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+}
+
+void
+Util::get_process_times(double *user_sec, double *system_sec)
+{
+#ifdef _WIN32
+    FILETIME creationTime, exitTime, kernelTime, userTime;
+    ULARGE_INTEGER user, kernel;
+
+    GetProcessTimes(GetCurrentProcess(), &creationTime, &exitTime, &kernelTime, &userTime);
+    // convert FILETIME to ULARGE_INTEGER
+    user.LowPart = userTime.dwLowDateTime;
+    user.HighPart = userTime.dwHighDateTime;
+    kernel.LowPart = kernelTime.dwLowDateTime;
+    kernel.HighPart = kernelTime.dwHighDateTime;
+    // FILETIME contains the number of 100 nsec intervals.
+    *user_sec = user.QuadPart / 1e7;
+    *system_sec = kernel.QuadPart / 1e7;
+#else
+    struct rusage usage;
+
+    getrusage(RUSAGE_SELF, &usage);
+    *user_sec = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6;
+    *system_sec = usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+#endif
+}
+
+double
+Util::get_idle_time()
+{
+#ifdef _WIN32
+    FILETIME idleTime;
+    GetSystemTimes(&idleTime, nullptr, nullptr);
+    ULARGE_INTEGER ulIdleTime;
+    ulIdleTime.LowPart = idleTime.dwLowDateTime;
+    ulIdleTime.HighPart = idleTime.dwHighDateTime;
+    // FILETIME contains the number of 100 nsec intervals.
+    return ulIdleTime.QuadPart / 1e7;
+#else
+    double uptime, idle;
+    std::ifstream ifs("/proc/uptime");
+    ifs >> uptime >> idle;
+    if (!ifs.fail()) return idle;
+    return 0.0;
+#endif
+}

@@ -15,6 +15,11 @@
 #include <iostream>
 #include <iomanip>
 #include "vec.h"
+#ifndef USE_EXCEPTIONS
+// If we're not throwing exceptions, we'll need the logger to make sure the
+// caller is informed of errors.
+#include "log.h"
+#endif // USE_EXCEPTIONS
 
 namespace LibMatrix
 {
@@ -103,12 +108,17 @@ public:
     //
     // NOTE: If this is non-invertible, we will
     //       throw to avoid undefined behavior.
-    tmat2& inverse() throw(std::runtime_error)
+    tmat2& inverse()
     {
         T d(determinant());
         if (d == static_cast<T>(0))
         {
+#ifdef USE_EXCEPTIONS
             throw std::runtime_error("Matrix is noninvertible!!!!");
+#else // !USE_EXCEPTIONS
+            Log::error("Matrix is noninvertible!!!!\n");
+            return *this;
+#endif // USE_EXCEPTIONS
         }
         T c0r0(m_[3] / d);
         T c0r1(-m_[1] / d);
@@ -397,12 +407,17 @@ public:
     //
     // NOTE: If this is non-invertible, we will
     //       throw to avoid undefined behavior.
-    tmat3& inverse() throw(std::runtime_error)
+    tmat3& inverse()
     {
         T d(determinant());
         if (d == static_cast<T>(0))
         {
+#ifdef USE_EXCEPTIONS
             throw std::runtime_error("Matrix is noninvertible!!!!");
+#else // !USE_EXCEPTIONS
+            Log::error("Matrix is noninvertible!!!!\n");
+            return *this;
+#endif // USE_EXCEPTIONS
         }
         tmat2<T> minor0(m_[4], m_[5], m_[7], m_[8]);
         tmat2<T> minor1(m_[7], m_[8], m_[1], m_[2]);
@@ -771,12 +786,17 @@ public:
     //
     // NOTE: If this is non-invertible, we will
     //       throw to avoid undefined behavior.
-    tmat4& inverse() throw(std::runtime_error)
+    tmat4& inverse()
     {
         T d(determinant());
         if (d == static_cast<T>(0))
         {
+#ifdef USE_EXCEPTIONS
             throw std::runtime_error("Matrix is noninvertible!!!!");
+#else // !USE_EXCEPTIONS
+            Log::error("Matrix is noninvertible!!!!\n");
+            return *this;
+#endif // USE_EXCEPTIONS
         }
         tmat3<T> minor0(m_[5], m_[6], m_[7], m_[9], m_[10], m_[11], m_[13], m_[14], m_[15]);
         tmat3<T> minor1(m_[1], m_[2], m_[3], m_[13], m_[14], m_[15], m_[9], m_[10], m_[11]);

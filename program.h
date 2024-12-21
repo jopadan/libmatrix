@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <utility>
 #include "mat.h"
 
 // Simple shader container.  Abstracts all of the OpenGL bits, but leaves
@@ -35,6 +36,13 @@ public:
         message_(shader.message_),
         ready_(shader.ready_),
         valid_(shader.valid_) {}
+    Shader(Shader&& shader) noexcept:
+        handle_(std::exchange(shader.handle_, 0)),
+        type_(std::exchange(shader.type_, 0)),
+        source_(std::move(shader.source_)),
+        message_(std::move(shader.message_)),
+        ready_(std::exchange(shader.ready_, false)),
+        valid_(std::exchange(shader.valid_, false)) {}
     Shader(unsigned int type, const std::string& source);
     ~Shader();
 
